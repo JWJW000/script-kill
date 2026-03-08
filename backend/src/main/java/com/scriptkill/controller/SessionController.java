@@ -9,6 +9,7 @@ import com.scriptkill.entity.User;
 import com.scriptkill.service.OrderService;
 import com.scriptkill.service.ScriptService;
 import com.scriptkill.service.SessionService;
+import com.scriptkill.common.Constants;
 import com.scriptkill.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -76,6 +77,13 @@ public class SessionController {
         String role = (String) request.getAttribute("role");
         if (!"ADMIN".equals(role)) {
             return Result.error(403, "无权限操作");
+        }
+        // 新增场次时确保状态为「可预约」、当前人数为 0，否则玩家端列表不展示
+        if (session.getStatus() == null) {
+            session.setStatus(Constants.SESSION_STATUS_AVAILABLE);
+        }
+        if (session.getCurrentPlayers() == null) {
+            session.setCurrentPlayers(0);
         }
         sessionService.save(session);
         return Result.success("保存成功");

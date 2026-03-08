@@ -52,7 +52,8 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="场次时间" prop="sessionTime">
-              <el-date-picker v-model="form.sessionTime" type="datetime" style="width: 100%" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DDTHH:mm:ss" />
+              <el-date-picker v-model="form.sessionTime" type="datetime" style="width: 100%" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DDTHH:mm:ss" :disabled-date="disablePastDate" />
+              <div class="form-hint">玩家端仅显示「未来时间」且「可预约」的场次，请选择尚未开始的时间</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -118,7 +119,8 @@ const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       try {
-        const data = { ...form, sessionTime: new Date(form.sessionTime).toISOString() }
+        // 直接传本地时间字符串，避免 toISOString() 转成 UTC 导致存库/显示时间不一致
+        const data = { ...form, sessionTime: form.sessionTime }
         const res = isEdit.value ? await updateSession(form.id, data) : await createSession(data)
         if (res.code === 200) { ElMessage.success(isEdit.value ? '更新成功' : '创建成功'); showDialog.value = false; loadSessions() }
       } catch (e) { ElMessage.error('操作失败') }
@@ -141,6 +143,7 @@ const toggleStatus = async (s) => {
   } catch (e) { ElMessage.error('操作失败') }
 }
 
+const disablePastDate = (date) => date < new Date(new Date().setHours(0, 0, 0, 0))
 const formatTime = (t) => t ? new Date(t).toLocaleString('zh-CN') : ''
 const statusText = (s) => ({ 0: '已取消', 1: '可预约', 2: '已满员', 3: '已结束' }[s] || '未知')
 const statusColor = (s) => ({ 0: 'red', 1: 'green', 2: 'amber', 3: 'cyan' }[s] || 'cyan')
@@ -156,5 +159,8 @@ onMounted(() => { loadSessions(); loadScripts(); loadHosts() })
 .table-card {
   background: linear-gradient(135deg, rgba(15, 19, 40, 0.9), rgba(20, 25, 53, 0.7));
   border: 1px solid var(--sk-border); border-radius: var(--sk-radius-lg); padding: 20px;
+}
+.form-hint {
+  font-size: 12px; color: var(--sk-text-muted); margin-top: 6px; line-height: 1.4;
 }
 </style>
