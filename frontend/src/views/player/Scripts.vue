@@ -26,6 +26,17 @@
           <span class="chip" :class="{ active: searchForm.difficulty === 'EXPERT' }" @click="searchForm.difficulty = 'EXPERT'; loadScripts()">烧脑</span>
         </div>
       </div>
+      <div class="filter-group">
+        <span class="filter-label">人数</span>
+        <div class="filter-chips">
+          <span class="chip" :class="{ active: !searchForm.playerCount }" @click="searchForm.playerCount = ''; loadScripts()">全部</span>
+          <span class="chip" :class="{ active: searchForm.playerCount === '≤4' }" @click="searchForm.playerCount = '≤4'; loadScripts()">≤4人</span>
+          <span class="chip" :class="{ active: searchForm.playerCount === '5' }" @click="searchForm.playerCount = '5'; loadScripts()">5人</span>
+          <span class="chip" :class="{ active: searchForm.playerCount === '6' }" @click="searchForm.playerCount = '6'; loadScripts()">6人</span>
+          <span class="chip" :class="{ active: searchForm.playerCount === '7' }" @click="searchForm.playerCount = '7'; loadScripts()">7人</span>
+          <span class="chip" :class="{ active: searchForm.playerCount === '≥8' }" @click="searchForm.playerCount = '≥8'; loadScripts()">≥8人</span>
+        </div>
+      </div>
     </div>
 
     <div class="scripts-grid fade-in-up stagger-2">
@@ -79,13 +90,42 @@
           <div class="info-row"><span class="info-label">人数</span><span class="info-value">{{ currentScript.minPlayers }} - {{ currentScript.maxPlayers }} 人</span></div>
           <div class="info-row"><span class="info-label">时长</span><span class="info-value">{{ currentScript.duration }} 分钟</span></div>
           <div class="info-row"><span class="info-label">价格</span><span class="info-value price">¥{{ currentScript.price }}</span></div>
+          <div v-if="scriptStats.totalReviews > 0" class="info-row"><span class="info-label">评分</span><span class="info-value rating">{{ scriptStats.averageRating?.toFixed(1) }} ({{ scriptStats.totalReviews }}条评价)</span></div>
         </div>
         <div class="detail-desc">
           <h4>剧本简介</h4>
           <p>{{ currentScript.description || '这个剧本的故事等你来揭开...' }}</p>
         </div>
 
-        <button class="book-btn" @click="$router.push('/player/sessions'); showDrawer = false">立即预约场次</button>
+        <button class="book-btn" @click="$router.push({ path: '/player/sessions', query: { scriptId: currentScript.id }}); showDrawer = false">立即预约场次</button>
+
+        <div class="action-buttons">
+          <button class="action-btn" :class="{ favorited: isFavorited }" @click="toggleFavorite">
+            <el-icon><Star /></el-icon>
+            {{ isFavorited ? '已收藏' : '加入收藏' }}
+          </button>
+          <button class="action-btn" @click="showTeamUpDialog">
+            <el-icon><UserFilled /></el-icon>
+            加入拼场
+          </button>
+          <button class="action-btn" @click="goToCreateTeamUp">
+            <el-icon><Plus /></el-icon>
+            发起拼场
+          </button>
+        </div>
+
+        <!-- 该剧本的拼场列表 -->
+        <div v-if="scriptTeamUps.length > 0" class="script-teamups">
+          <h4 class="teamups-title">该剧本的拼场</h4>
+          <div v-for="team in scriptTeamUps" :key="team.id" class="teamup-item">
+            <div class="teamup-info">
+              <span class="teamup-time">{{ formatTime(team.expectedTime) }}</span>
+              <span class="teamup-players">{{ team.currentPlayers }}/{{ team.totalPlayers }}人</span>
+            </div>
+            <button v-if="!team.joined" class="teamup-join-btn" @click="handleQuickJoin(team)">加入</button>
+            <span v-else class="teamup-joined">已加入</span>
+          </div>
+        </div>
 
         <!-- 剧本评价区域 -->
         <div class="detail-reviews">
@@ -113,34 +153,82 @@
         </div>
       </div>
     </el-drawer>
+
+    <!-- 加入拼场弹窗 -->
+    <el-dialog v-model="showJoinDialog" title="加入拼场" width="400px">
+      <div v-if="joiningTeam" class="join-form">
+        <div class="join-info">
+          <h4>{{ joiningTeam.scriptName }}</h4>
+          <p>{{ formatTime(joiningTeam.expectedTime) }}</p>
+          <div class="current-status">
+            <span>当前 {{ joiningTeam.currentPlayers }}/{{ joiningTeam.totalPlayers }} 人</span>
+          </div>
+        </div>
+        <el-form-item label="加入人数">
+          <el-input-number v-model="joinCount" :min="1" :max="joiningTeam.totalPlayers - joiningTeam.currentPlayers" style="width: 100%" />
+        </el-form-item>
+        <p class="join-tip">选择你要加入的人数，系统将为你生成待支付订单</p>
+      </div>
+      <template #footer>
+        <el-button @click="showJoinDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmJoin">确认加入</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { getScripts } from '@/api/script'
 import { getReviewList, getScriptStatistics } from '@/api/review'
+import { addFavorite, removeFavorite, getFavorites } from '@/api/script'
+import { getTeamUpList, joinTeamUp } from '@/api/teamUp'
+import { ElMessage } from 'element-plus'
+import { Star, StarFilled, UserFilled, Plus } from '@element-plus/icons-vue'
 
+const router = useRouter()
+const route = useRoute()
 const scripts = ref([])
 const showDrawer = ref(false)
 const currentScript = ref(null)
 const scriptReviews = ref([])
 const scriptStats = ref({ averageRating: 0, totalReviews: 0, goodRate: 0 })
+const isFavorited = ref(false)
+const favoriteId = ref(null)
+const scriptTeamUps = ref([])
+const showJoinDialog = ref(false)
+const joiningTeam = ref(null)
+const joinCount = ref(1)
 
 const searchForm = reactive({
   name: '',
   type: '',
-  difficulty: ''
+  difficulty: '',
+  playerCount: ''
 })
 
 const loadScripts = async () => {
   try {
-    const res = await getScripts({
+    const params = {
       name: searchForm.name || undefined,
       type: searchForm.type || undefined,
-      difficulty: searchForm.difficulty || undefined
-    })
+      difficulty: searchForm.difficulty || undefined,
+      playerCount: searchForm.playerCount || undefined
+    }
+    // 如果有 scriptId 参数，只加载该剧本
+    if (route.query.scriptId) {
+      params.id = route.query.scriptId
+    }
+    const res = await getScripts(params)
     if (res.code === 200) scripts.value = res.data || []
+  } catch (e) { console.error(e) }
+}
+
+const loadScriptTeamUps = async (scriptId) => {
+  try {
+    const res = await getTeamUpList({ scriptId })
+    if (res.code === 200) scriptTeamUps.value = res.data || []
   } catch (e) { console.error(e) }
 }
 
@@ -149,14 +237,28 @@ const openDetail = async (script) => {
   showDrawer.value = true
   scriptReviews.value = []
   scriptStats.value = { averageRating: 0, totalReviews: 0, goodRate: 0 }
+  isFavorited.value = false
+  favoriteId.value = null
+  scriptTeamUps.value = []
 
   try {
-    const [reviewsRes, statsRes] = await Promise.all([
+    const [reviewsRes, statsRes, favRes] = await Promise.all([
       getReviewList({ scriptId: script.id }),
-      getScriptStatistics(script.id)
+      getScriptStatistics(script.id),
+      getFavorites()
     ])
     if (reviewsRes.code === 200) scriptReviews.value = reviewsRes.data || []
     if (statsRes.code === 200 && statsRes.data) scriptStats.value = statsRes.data
+    if (favRes.code === 200) {
+      // FavoriteVO has id (favorite record id) and scriptId
+      const fav = (favRes.data || []).find(f => f.scriptId === script.id)
+      if (fav) {
+        isFavorited.value = true
+        favoriteId.value = fav.id  // This is the favorite record ID
+      }
+    }
+    // Load team-ups for this script
+    await loadScriptTeamUps(script.id)
   } catch (e) { console.error(e) }
 }
 
@@ -166,8 +268,70 @@ const formatReviewTime = (t) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const formatTime = (t) => {
+  if (!t) return ''
+  const d = new Date(t)
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 const difficultyText = (d) => ({ BEGINNER: '新手', INTERMEDIATE: '进阶', EXPERT: '烧脑' }[d] || d)
 const difficultyColor = (d) => ({ BEGINNER: 'green', INTERMEDIATE: 'amber', EXPERT: 'red' }[d] || 'cyan')
+
+const toggleFavorite = async () => {
+  if (!currentScript.value) return
+  try {
+    if (isFavorited.value) {
+      // Pass scriptId for removal since backend removeFavorite takes scriptId
+      const res = await removeFavorite(currentScript.value.id)
+      if (res.code === 200) {
+        isFavorited.value = false
+        favoriteId.value = null
+        ElMessage.success('已取消收藏')
+      }
+    } else {
+      const res = await addFavorite({ scriptId: currentScript.value.id })
+      if (res.code === 200) {
+        isFavorited.value = true
+        favoriteId.value = res.data
+        ElMessage.success('已添加到收藏')
+      }
+    }
+  } catch (e) { ElMessage.error(e.message || '操作失败') }
+}
+
+const showTeamUpDialog = () => {
+  if (scriptTeamUps.value.length > 0) {
+    showJoinDialog.value = true
+    joiningTeam.value = scriptTeamUps.value[0]
+  } else {
+    ElMessage.info('暂无该剧本的拼场，你可以发起一个新拼场')
+    goToCreateTeamUp()
+  }
+}
+
+const handleQuickJoin = (team) => {
+  joiningTeam.value = team
+  joinCount.value = 1
+  showJoinDialog.value = true
+}
+
+const confirmJoin = async () => {
+  if (!joiningTeam.value) return
+  try {
+    const res = await joinTeamUp(joiningTeam.value.id, joinCount.value)
+    if (res.code === 200) {
+      ElMessage.success('成功加入拼场')
+      showJoinDialog.value = false
+      await loadScriptTeamUps(currentScript.value.id)
+    }
+  } catch (e) { ElMessage.error(e.message || '加入失败') }
+}
+
+const goToCreateTeamUp = () => {
+  if (!currentScript.value) return
+  showDrawer.value = false
+  router.push({ path: '/player/team-up', query: { scriptId: currentScript.value.id, action: 'create' }})
+}
 
 onMounted(() => { loadScripts() })
 </script>
@@ -355,6 +519,7 @@ onMounted(() => { loadScripts() })
       .info-label { color: var(--sk-text-muted); font-size: 14px; }
       .info-value { color: var(--sk-text-primary); font-weight: 600; }
       .info-value.price { color: var(--sk-neon-pink); font-family: var(--sk-font-display); font-size: 18px; }
+      .info-value.rating { color: var(--sk-neon-amber); }
     }
   }
 
@@ -377,11 +542,92 @@ onMounted(() => { loadScripts() })
     transition: all 0.3s;
     font-family: var(--sk-font-body);
     letter-spacing: 2px;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
 
     &:hover {
       box-shadow: var(--sk-glow-cyan);
       transform: translateY(-2px);
+    }
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+
+    .action-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--sk-border);
+      background: rgba(15, 19, 40, 0.6);
+      color: var(--sk-text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-family: var(--sk-font-body);
+
+      &:hover {
+        border-color: var(--sk-border-glow);
+        color: var(--sk-text-primary);
+      }
+
+      &.favorited {
+        border-color: rgba(255, 171, 0, 0.4);
+        color: var(--sk-neon-amber);
+        background: rgba(255, 171, 0, 0.08);
+      }
+    }
+  }
+
+  .script-teamups {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: rgba(180, 74, 255, 0.03);
+    border: 1px solid rgba(180, 74, 255, 0.15);
+    border-radius: 10px;
+
+    .teamups-title {
+      font-size: 14px;
+      color: var(--sk-text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .teamup-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(180, 74, 255, 0.1);
+      &:last-child { border-bottom: none; }
+
+      .teamup-info {
+        display: flex;
+        gap: 12px;
+        .teamup-time { font-size: 13px; color: var(--sk-text-primary); }
+        .teamup-players { font-size: 12px; color: var(--sk-text-muted); }
+      }
+
+      .teamup-join-btn {
+        padding: 5px 14px;
+        border-radius: 6px;
+        background: rgba(0, 229, 255, 0.1);
+        border: 1px solid rgba(0, 229, 255, 0.3);
+        color: var(--sk-neon-cyan);
+        font-size: 12px;
+        cursor: pointer;
+        &:hover { background: rgba(0, 229, 255, 0.2); }
+      }
+
+      .teamup-joined {
+        font-size: 12px;
+        color: var(--sk-neon-amber);
+      }
     }
   }
 
@@ -466,6 +712,40 @@ onMounted(() => { loadScripts() })
       border: 1px dashed var(--sk-border);
       border-radius: 10px;
     }
+  }
+}
+
+.join-form {
+  .join-info {
+    background: rgba(0, 229, 255, 0.03);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border: 1px solid var(--sk-border);
+
+    h4 { font-size: 16px; color: var(--sk-text-primary); margin-bottom: 8px; }
+    p { font-size: 13px; color: var(--sk-text-muted); margin-bottom: 8px; }
+    .current-status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      span {
+        padding: 4px 12px;
+        background: rgba(180, 74, 255, 0.1);
+        border: 1px solid rgba(180, 74, 255, 0.3);
+        border-radius: 6px;
+        color: var(--sk-neon-purple);
+        font-size: 13px;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .join-tip {
+    font-size: 12px;
+    color: var(--sk-text-muted);
+    margin-top: 8px;
+    text-align: center;
   }
 }
 

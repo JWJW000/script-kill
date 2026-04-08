@@ -10,5 +10,7 @@ public interface TeamUpService extends IService<TeamUp> {
     void joinTeamUp(Long teamUpId, Long userId);
     void leaveTeamUp(Long teamUpId, Long userId);
     List<TeamUp> listTeamUps(String type, LocalDateTime startTime, LocalDateTime endTime);
+    List<TeamUp> listTeamUpsByScriptId(Long scriptId);
     List<TeamUp> getRecommendedTeamUps(Long userId);
+    void createSessionFromTeamUp(Long teamUpId);
 }

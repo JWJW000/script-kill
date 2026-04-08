@@ -13,4 +13,6 @@ public interface SessionService extends IService<Session> {
     void confirmAttendance(Long sessionId, Long hostId);
     void cancelConfirmAttendance(Long sessionId, Long hostId);
     void cancelSession(Long sessionId, Long hostId);
+    void cancelSessionByAdmin(Long sessionId);
+    void endSession(Long sessionId, Long hostId);
 }

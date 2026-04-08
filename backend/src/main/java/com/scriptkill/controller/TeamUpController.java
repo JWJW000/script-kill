@@ -60,10 +60,17 @@ public class TeamUpController {
     public Result<List<TeamUp>> listTeamUps(@RequestParam(required = false) String type,
                                             @RequestParam(required = false) String startTime,
                                             @RequestParam(required = false) String endTime,
+                                            @RequestParam(required = false) Long scriptId,
                                             HttpServletRequest request) {
         LocalDateTime start = startTime != null ? LocalDateTime.parse(startTime) : null;
         LocalDateTime end = endTime != null ? LocalDateTime.parse(endTime) : null;
-        List<TeamUp> teamUps = teamUpService.listTeamUps(type, start, end);
+        
+        List<TeamUp> teamUps;
+        if (scriptId != null) {
+            teamUps = teamUpService.listTeamUpsByScriptId(scriptId);
+        } else {
+            teamUps = teamUpService.listTeamUps(type, start, end);
+        }
 
         // 为玩家标记 joined 状态
         Long userId = (Long) request.getAttribute("userId");
@@ -101,6 +108,30 @@ public class TeamUpController {
                 t.setJoined(joinedIds.contains(t.getId()));
             }
         }
+        return Result.success(teamUps);
+    }
+
+    @GetMapping("/my-teamups")
+    public Result<List<TeamUp>> getMyTeamUps(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        
+        // 获取用户参与的所有拼场ID
+        QueryWrapper<TeamUpParticipant> participantWrapper = new QueryWrapper<>();
+        participantWrapper.eq("user_id", userId);
+        List<TeamUpParticipant> participants = teamUpParticipantMapper.selectList(participantWrapper);
+        
+        if (participants.isEmpty()) {
+            return Result.success(java.util.Collections.emptyList());
+        }
+        
+        java.util.List<Long> teamUpIds = new java.util.ArrayList<>();
+        for (TeamUpParticipant p : participants) {
+            teamUpIds.add(p.getTeamUpId());
+        }
+        
+        // 获取这些拼场的详情
+        List<TeamUp> teamUps = teamUpService.listByIds(teamUpIds);
+        
         return Result.success(teamUps);
     }
 }

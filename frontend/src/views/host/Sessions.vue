@@ -24,6 +24,7 @@
           <el-button size="small" @click="viewDetails(session)">详情</el-button>
           <template v-if="session.attendanceConfirmed === 1">
             <el-button size="small" type="warning" @click="handleCancelConfirm(session)">取消确认到场</el-button>
+            <el-button v-if="session.status !== 3" size="small" type="primary" @click="handleEnd(session)">结束本场</el-button>
           </template>
           <template v-else>
             <el-button size="small" type="success" @click="handleConfirm(session)">确认到场</el-button>
@@ -67,7 +68,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheck, Clock, Location, User } from '@element-plus/icons-vue'
-import { getHostSessions, confirmAttendance, cancelConfirmAttendance, cancelSession } from '@/api/session'
+import { getHostSessions, confirmAttendance, cancelConfirmAttendance, cancelSession, endSession } from '@/api/session'
 import { getSessionOrders } from '@/api/order'
 
 const sessions = ref([])
@@ -118,6 +119,14 @@ const handleCancel = async (session) => {
     const res = await cancelSession(session.id)
     if (res.code === 200) { ElMessage.success('已取消'); loadSessions() }
   } catch (e) { if (e !== 'cancel') ElMessage.error('取消失败') }
+}
+
+const handleEnd = async (session) => {
+  try {
+    await ElMessageBox.confirm('确定要结束此场次吗？结束后订单将标记为已完成。', '结束场次', { type: 'warning' })
+    const res = await endSession(session.id)
+    if (res.code === 200) { ElMessage.success('场次已结束'); loadSessions() }
+  } catch (e) { if (e !== 'cancel') ElMessage.error('操作失败') }
 }
 
 const formatTime = (t) => t ? new Date(t).toLocaleString('zh-CN') : ''

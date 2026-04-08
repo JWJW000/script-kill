@@ -8,10 +8,11 @@ export function createTeamUp(data) {
   })
 }
 
-export function joinTeamUp(id) {
+export function joinTeamUp(id, count = 1) {
   return request({
     url: `/team-up/join/${id}`,
-    method: 'post'
+    method: 'post',
+    params: { count }
   })
 }
 
@@ -33,6 +34,13 @@ export function getTeamUpList(params) {
 export function getRecommendedTeamUps() {
   return request({
     url: '/team-up/recommend',
+    method: 'get'
+  })
+}
+
+export function getMyTeamUps() {
+  return request({
+    url: '/team-up/my-teamups',
     method: 'get'
   })
 }

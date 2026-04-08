@@ -57,7 +57,25 @@ const routes = [
         path: 'profile',
         name: 'PlayerProfile',
         component: () => import('@/views/player/Profile.vue'),
-        meta: { title: '身份档案' }
+        meta: { title: '个人中心' }
+      },
+      {
+        path: 'my-teamups',
+        name: 'PlayerMyTeamUps',
+        component: () => import('@/views/player/MyTeamUps.vue'),
+        meta: { title: '我的拼场' }
+      },
+      {
+        path: 'my-reviews',
+        name: 'PlayerMyReviews',
+        component: () => import('@/views/player/MyReviews.vue'),
+        meta: { title: '我的评价' }
+      },
+      {
+        path: 'my-favorites',
+        name: 'PlayerMyFavorites',
+        component: () => import('@/views/player/MyFavorites.vue'),
+        meta: { title: '我的收藏' }
       }
     ]
   },

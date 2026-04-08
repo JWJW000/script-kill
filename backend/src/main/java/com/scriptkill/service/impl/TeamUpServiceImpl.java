@@ -11,6 +11,7 @@ import com.scriptkill.entity.Session;
 import com.scriptkill.entity.TeamUp;
 import com.scriptkill.entity.TeamUpParticipant;
 import com.scriptkill.mapper.AiMatchLogMapper;
+import com.scriptkill.mapper.OrderMapper;
 import com.scriptkill.mapper.TeamUpMapper;
 import com.scriptkill.mapper.TeamUpParticipantMapper;
 import com.scriptkill.service.AiMatchReasonService;
@@ -39,6 +40,8 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
     private AiMatchReasonService aiMatchReasonService;
     @Autowired
     private TeamUpParticipantMapper teamUpParticipantMapper;
+    @Autowired
+    private OrderMapper orderMapper;
 
     @Override
     @Transactional
@@ -98,8 +101,8 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
         
         if (newCurrent >= teamUp.getTotalPlayers()) {
             updateWrapper.set("status", Constants.TEAM_UP_STATUS_FULL);
-            // 自动生成场次
-            createSessionFromTeamUp(teamUp);
+            // 满员后生成待支付订单（不立即创建session，等所有支付完成后创建）
+            createOrdersForTeamUp(teamUp);
         }
         
         this.update(updateWrapper);
@@ -141,7 +144,39 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
         this.updateById(teamUp);
     }
 
-    private void createSessionFromTeamUp(TeamUp teamUp) {
+    /**
+     * 满员后为所有参与者生成待支付订单（不创建session，等所有支付完成后创建）
+     */
+    private void createOrdersForTeamUp(TeamUp teamUp) {
+        Script script = scriptService.getById(teamUp.getScriptId());
+        if (script == null) {
+            return;
+        }
+        
+        // 为所有参与者生成待支付订单（临时用teamUp.getId()作为sessionId标识）
+        QueryWrapper<TeamUpParticipant> participantWrapper = new QueryWrapper<>();
+        participantWrapper.eq("team_up_id", teamUp.getId());
+        List<TeamUpParticipant> participants = teamUpParticipantMapper.selectList(participantWrapper);
+        if (participants != null && !participants.isEmpty()) {
+            for (TeamUpParticipant participant : participants) {
+                try {
+                    // 使用teamUp.id * -1 作为临时sessionId标识，实际创建session时替换
+                    orderService.createTeamUpOrder(participant.getUserId(), teamUp.getId(), 1, script.getPrice());
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    /**
+     * 全部支付完成后创建正式场次
+     */
+    public void createSessionFromTeamUp(Long teamUpId) {
+        TeamUp teamUp = this.getById(teamUpId);
+        if (teamUp == null || teamUp.getSessionId() != null) {
+            return; // 已经有场次或拼场不存在
+        }
+        
         Script script = scriptService.getById(teamUp.getScriptId());
         if (script == null) {
             return;
@@ -154,26 +189,14 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
         session.setLocation("待定");
         session.setPrice(script.getPrice());
         session.setMaxPlayers(teamUp.getTotalPlayers());
-        session.setCurrentPlayers(0);
-        session.setStatus(Constants.SESSION_STATUS_AVAILABLE);
+        session.setCurrentPlayers(teamUp.getTotalPlayers());
+        session.setStatus(Constants.SESSION_STATUS_FULL); // 直接设为已满员
         
         sessionService.save(session);
-
-        // 为所有参与者自动生成对应场次的待支付订单
-        QueryWrapper<TeamUpParticipant> participantWrapper = new QueryWrapper<>();
-        participantWrapper.eq("team_up_id", teamUp.getId());
-        List<TeamUpParticipant> participants = teamUpParticipantMapper.selectList(participantWrapper);
-        if (participants != null && !participants.isEmpty()) {
-            for (TeamUpParticipant participant : participants) {
-                // 每个参与者默认按1人计费，生成待支付订单
-                try {
-                    orderService.createOrder(participant.getUserId(), session.getId(), 1);
-                } catch (Exception ignored) {
-                    // 单个用户订单失败不影响其他人，错误可后续排查
-                }
-            }
-        }
-
+        
+        // 更新订单中的临时sessionId为正式sessionId
+        orderService.updateTeamUpOrdersToSession(teamUp.getId(), session.getId());
+        
         // 更新拼场状态并关联生成的场次
         teamUp.setSessionId(session.getId());
         teamUp.setStatus(Constants.TEAM_UP_STATUS_SESSION_CREATED);
@@ -185,9 +208,6 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
         QueryWrapper<TeamUp> wrapper = new QueryWrapper<>();
         wrapper.eq("status", Constants.TEAM_UP_STATUS_ACTIVE);
         
-        if (type != null && !type.isEmpty()) {
-            // 需要通过script关联查询，这里简化处理
-        }
         if (startTime != null) {
             wrapper.ge("expected_time", startTime);
         }
@@ -195,6 +215,19 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
             wrapper.le("expected_time", endTime);
         }
 
+        List<TeamUp> list = this.list(wrapper);
+        fillScriptInfo(list);
+        return list;
+    }
+
+    @Override
+    public List<TeamUp> listTeamUpsByScriptId(Long scriptId) {
+        QueryWrapper<TeamUp> wrapper = new QueryWrapper<>();
+        wrapper.eq("status", Constants.TEAM_UP_STATUS_ACTIVE);
+        wrapper.eq("script_id", scriptId);
+        wrapper.gt("expected_time", LocalDateTime.now());
+        wrapper.orderByAsc("expected_time");
+        
         List<TeamUp> list = this.list(wrapper);
         fillScriptInfo(list);
         return list;
@@ -230,7 +263,10 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
         wrapper.gt("expected_time", LocalDateTime.now());
         List<TeamUp> allTeamUps = this.list(wrapper);
         
-        // 4. 计算匹配分数并排序
+        // 4. 计算每个剧本的热度（被预约次数）
+        Map<Long, Long> scriptPopularity = calculateScriptPopularity();
+        
+        // 5. 计算匹配分数并排序
         List<MatchResult> scoredTeamUps = allTeamUps.stream()
             .map(teamUp -> {
                 Script script = scriptService.getById(teamUp.getScriptId());
@@ -261,6 +297,10 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
                 if (remaining > 0) {
                     score += remaining * 2;
                 }
+
+                // 剧本热度加权（根据被预约次数）
+                long popularity = scriptPopularity.getOrDefault(script.getId(), 0L);
+                score += popularity * 0.5;  // 每被预约1次加0.5分
 
                 return new MatchResult(teamUp, score, null);
             })
@@ -305,6 +345,23 @@ public class TeamUpServiceImpl extends ServiceImpl<TeamUpMapper, TeamUp> impleme
         }
 
         return result;
+    }
+
+    private Map<Long, Long> calculateScriptPopularity() {
+        // 统计每个剧本被完成订单预约的次数作为热度
+        QueryWrapper<Order> orderWrapper = new QueryWrapper<>();
+        orderWrapper.eq("order_status", Constants.ORDER_STATUS_COMPLETED);
+        List<Order> completedOrders = orderMapper.selectList(orderWrapper);
+        
+        Map<Long, Long> popularity = new HashMap<>();
+        for (Order order : completedOrders) {
+            Session session = sessionService.getById(order.getSessionId());
+            if (session != null) {
+                Long scriptId = session.getScriptId();
+                popularity.merge(scriptId, 1L, Long::sum);
+            }
+        }
+        return popularity;
     }
 
     private void fillScriptInfo(List<TeamUp> teamUps) {

@@ -104,6 +104,10 @@ public class UserController {
             return Result.error(403, "无权限操作");
         }
         try {
+            // 密码必须MD5加密存储，否则新创建的用户（主持人等）无法登录
+            if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+                user.setPassword(org.springframework.util.DigestUtils.md5DigestAsHex(user.getPassword().getBytes()));
+            }
             userService.save(user);
             return Result.success("创建成功");
         } catch (Exception e) {
@@ -118,6 +122,10 @@ public class UserController {
             return Result.error(403, "无权限操作");
         }
         user.setId(id);
+        // 如果更新时带了密码，需要MD5加密
+        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+            user.setPassword(org.springframework.util.DigestUtils.md5DigestAsHex(user.getPassword().getBytes()));
+        }
         userService.updateById(user);
         return Result.success("更新成功");
     }
@@ -143,7 +151,9 @@ public class UserController {
             if (user == null) {
                 return Result.error("用户不存在");
             }
-            userService.updatePassword(id, user.getPassword(), newPassword);
+            // 重置密码时，新密码需要MD5加密
+            String encryptedNewPassword = org.springframework.util.DigestUtils.md5DigestAsHex(newPassword.getBytes());
+            userService.updatePassword(id, user.getPassword(), encryptedNewPassword);
             return Result.success("密码重置成功");
         } catch (Exception e) {
             return Result.error(e.getMessage());

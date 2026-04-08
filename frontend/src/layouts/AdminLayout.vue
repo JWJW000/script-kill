@@ -108,7 +108,9 @@ const handleLogout = () => {
 .sk-sidebar {
   width: 240px;
   min-height: 100vh;
-  background: linear-gradient(180deg, rgba(10, 14, 30, 0.98), rgba(6, 8, 18, 0.98));
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-right: 1px solid var(--sk-border);
   display: flex;
   flex-direction: column;
@@ -128,7 +130,6 @@ const handleLogout = () => {
   .brand-icon {
     width: 32px; height: 32px;
     color: var(--sk-neon-pink);
-    filter: drop-shadow(0 0 8px rgba(255, 45, 120, 0.5));
     svg { width: 100%; height: 100%; }
   }
 
@@ -136,8 +137,7 @@ const handleLogout = () => {
     display: flex; flex-direction: column;
     .brand-text {
       font-family: var(--sk-font-display); font-size: 15px; font-weight: 700;
-      color: var(--sk-neon-pink); letter-spacing: 3px;
-      text-shadow: 0 0 12px rgba(255, 45, 120, 0.4);
+      color: #1F2937; letter-spacing: 3px;
     }
     .brand-sub { font-size: 10px; color: var(--sk-text-muted); letter-spacing: 1px; }
   }
@@ -153,7 +153,7 @@ const handleLogout = () => {
   .nav-item {
     display: flex; align-items: center; gap: 12px;
     padding: 12px 16px; border-radius: 10px;
-    color: var(--sk-text-muted); text-decoration: none;
+    color: #6B7280; text-decoration: none;
     font-size: 14px; font-weight: 500;
     transition: all 0.3s; position: relative; overflow: hidden;
 
@@ -165,15 +165,14 @@ const handleLogout = () => {
       background: var(--sk-neon-pink);
       border-radius: 0 3px 3px 0;
       transition: height 0.3s;
-      box-shadow: 0 0 8px rgba(255, 45, 120, 0.6);
     }
 
-    &:hover { color: var(--sk-text-secondary); background: rgba(255, 45, 120, 0.04); }
+    &:hover { color: #1F2937; background: rgba(204, 34, 102, 0.06); }
 
     &.active {
-      color: var(--sk-neon-pink);
-      background: rgba(255, 45, 120, 0.08);
-      .el-icon { filter: drop-shadow(0 0 6px rgba(255, 45, 120, 0.5)); }
+      color: #FFFFFF;
+      background: var(--sk-neon-pink);
+      .el-icon { filter: none; }
       .nav-glow { height: 60%; }
     }
   }
@@ -187,12 +186,12 @@ const handleLogout = () => {
   .user-card {
     display: flex; align-items: center; gap: 10px;
     padding: 10px 12px; border-radius: 10px; cursor: pointer; transition: background 0.3s;
-    &:hover { background: rgba(255, 45, 120, 0.06); }
+    &:hover { background: rgba(204, 34, 102, 0.06); }
 
-    .el-avatar { border: 2px solid rgba(255, 45, 120, 0.3); background: var(--sk-bg-elevated); }
+    .el-avatar { border: 2px solid rgba(204, 34, 102, 0.2); background: var(--sk-bg-elevated); }
     .user-meta {
       display: flex; flex-direction: column;
-      .user-name { font-size: 13px; color: var(--sk-text-primary); font-weight: 500; }
+      .user-name { font-size: 13px; color: #1F2937; font-weight: 500; }
       .user-role { font-size: 10px; color: var(--sk-neon-pink); font-family: var(--sk-font-display); letter-spacing: 1px; opacity: 0.7; }
     }
   }
@@ -200,10 +199,10 @@ const handleLogout = () => {
   .user-menu {
     position: absolute; bottom: 72px; left: 12px; right: 12px;
     background: var(--sk-bg-card); border: 1px solid var(--sk-border);
-    border-radius: 10px; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border-radius: 10px; overflow: hidden; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
 
     .menu-item {
-      padding: 10px 16px; color: var(--sk-text-secondary);
+      padding: 10px 16px; color: #6B7280;
       font-size: 13px; cursor: pointer; transition: all 0.2s;
       &.danger:hover { background: rgba(255, 23, 68, 0.08); color: var(--sk-neon-red); }
     }
@@ -215,7 +214,6 @@ const handleLogout = () => {
   margin-left: 240px;
   padding: 28px;
   min-height: 100vh;
-  background: radial-gradient(ellipse at 70% 10%, rgba(255, 45, 120, 0.02) 0%, transparent 50%),
-              var(--sk-bg-deepest);
+  background: var(--sk-bg-deepest);
 }
 </style>

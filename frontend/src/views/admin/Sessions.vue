@@ -57,7 +57,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="地点" prop="location"><el-input v-model="form.location" /></el-form-item>
+            <el-form-item label="地点" prop="location">
+              <el-cascader v-model="form.locationPath" :options="locationOptions" :props="{ label: 'name', value: 'id', children: 'rooms' }" placeholder="选择厅和房间" style="width: 100%" @change="handleLocationChange" />
+            </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
@@ -79,6 +81,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getSessionList, createSession, updateSession, deleteSession, updateSessionStatus } from '@/api/session'
 import { getScripts } from '@/api/script'
 import { getUserList } from '@/api/user'
+import { getStoreList } from '@/api/store'
+import { getRoomsByStore } from '@/api/room'
 
 const sessions = ref([])
 const scriptList = ref([])
@@ -86,7 +90,10 @@ const hosts = ref([])
 const showDialog = ref(false)
 const formRef = ref(null)
 const isEdit = ref(false)
-const form = reactive({ id: null, scriptId: null, hostId: null, sessionTime: '', location: '', price: 0, maxPlayers: 6 })
+const stores = ref([])
+const rooms = ref([])
+const locationOptions = ref([])
+const form = reactive({ id: null, scriptId: null, hostId: null, sessionTime: '', location: '', locationPath: [], price: 0, maxPlayers: 6 })
 
 const rules = {
   scriptId: [{ required: true, message: '请选择剧本', trigger: 'change' }],
@@ -107,12 +114,53 @@ const loadHosts = async () => {
   try { const res = await getUserList(); if (res.code === 200) hosts.value = (res.data || []).filter(u => u.role === 'HOST') } catch (e) { console.error(e) }
 }
 
+const loadStores = async () => {
+  try {
+    const res = await getStoreList()
+    if (res.code === 200) {
+      stores.value = res.data || []
+      // 构建级联选择器选项
+      locationOptions.value = stores.value.map(store => ({
+        id: store.id,
+        name: store.name,
+        rooms: []
+      }))
+      // 加载所有房间
+      const allRoomsRes = await getRoomsByStore(0).catch(() => ({ code: 200, data: [] }))
+      if (allRoomsRes.code === 200) {
+        rooms.value = allRoomsRes.data || []
+        // 将房间分配到对应的厅
+        rooms.value.forEach(room => {
+          const store = locationOptions.value.find(s => s.id === room.storeId)
+          if (store) {
+            store.rooms.push({ id: room.id, name: room.name })
+          }
+        })
+      }
+    }
+  } catch (e) { console.error(e) }
+}
+
+const handleLocationChange = (value) => {
+  if (value && value.length === 2) {
+    const store = stores.value.find(s => s.id === value[0])
+    const room = rooms.value.find(r => r.id === value[1])
+    form.location = store ? `${store.name} - ${room ? room.name : ''}` : ''
+  } else {
+    form.location = ''
+  }
+}
+
 const handleAdd = () => {
   isEdit.value = false
-  Object.assign(form, { id: null, scriptId: null, hostId: null, sessionTime: '', location: '', price: 0, maxPlayers: 6 })
+  Object.assign(form, { id: null, scriptId: null, hostId: null, sessionTime: '', location: '', locationPath: [], price: 0, maxPlayers: 6 })
   showDialog.value = true
 }
-const editSession = (s) => { isEdit.value = true; Object.assign(form, { ...s }); showDialog.value = true }
+const editSession = (s) => {
+  isEdit.value = true
+  Object.assign(form, { ...s, locationPath: [] })
+  showDialog.value = true
+}
 
 const handleSubmit = async () => {
   if (!formRef.value) return
@@ -148,7 +196,7 @@ const formatTime = (t) => t ? new Date(t).toLocaleString('zh-CN') : ''
 const statusText = (s) => ({ 0: '已取消', 1: '可预约', 2: '已满员', 3: '已结束' }[s] || '未知')
 const statusColor = (s) => ({ 0: 'red', 1: 'green', 2: 'amber', 3: 'cyan' }[s] || 'cyan')
 
-onMounted(() => { loadSessions(); loadScripts(); loadHosts() })
+onMounted(() => { loadSessions(); loadScripts(); loadHosts(); loadStores() })
 </script>
 
 <style scoped lang="scss">

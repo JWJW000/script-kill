@@ -57,3 +57,32 @@ export function uploadScriptCover(id, file) {
     timeout: 30000
   })
 }
+
+export function getFavorites() {
+  return request({
+    url: '/favorite/list',
+    method: 'get'
+  })
+}
+
+export function addFavorite(data) {
+  return request({
+    url: '/favorite',
+    method: 'post',
+    data
+  })
+}
+
+export function removeFavorite(id) {
+  return request({
+    url: `/favorite/${id}`,
+    method: 'delete'
+  })
+}
+
+export function getMyFavorites() {
+  return request({
+    url: '/favorite/my-favorites',
+    method: 'get'
+  })
+}

@@ -6,9 +6,11 @@ import java.util.List;
 
 public interface OrderService extends IService<Order> {
     Order createOrder(Long userId, Long sessionId, Integer playerCount);
+    Order createTeamUpOrder(Long userId, Long teamUpId, Integer playerCount, java.math.BigDecimal price);
     void payOrder(String orderNo, String paymentMethod);
     void cancelOrder(String orderNo);
     void refundOrder(String orderNo);
     void completeOrder(String orderNo);
     List<Order> listUserOrders(Long userId, Integer orderStatus);
+    void updateTeamUpOrdersToSession(Long teamUpId, Long sessionId);
 }

@@ -5,7 +5,15 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SCRIPT KILL - 剧本杀预约系统</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+      /* 使用系统字体作为后备 */
+      :root {
+        --sk-font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+        --sk-font-display: "Orbitron", var(--sk-font-body);
+      }
+      body { font-family: var(--sk-font-body); }
+    </style>
   </head>
   <body>
     <div id="app"></div>

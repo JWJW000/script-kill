@@ -35,6 +35,35 @@
       </nav>
 
       <div class="sidebar-footer">
+        <div class="notification-trigger" @click="toggleNotification">
+          <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99" class="notif-badge">
+            <el-icon :size="20"><Bell /></el-icon>
+          </el-badge>
+          <span class="notif-label">通知</span>
+        </div>
+        
+        <transition name="el-fade-in">
+          <div v-if="showNotification" class="notification-panel">
+            <div class="notif-header">
+              <span class="notif-title">我的通知</span>
+              <span v-if="unreadCount > 0" class="notif-action" @click="markAllRead">全部已读</span>
+            </div>
+            <div class="notif-list">
+              <div v-for="notif in notifications" :key="notif.id" class="notif-item" :class="{ unread: notif.isRead === 0 }" @click="handleNotifClick(notif)">
+                <div class="notif-item-icon">
+                  <el-icon><component :is="getNotifIcon(notif.type)" /></el-icon>
+                </div>
+                <div class="notif-item-content">
+                  <div class="notif-item-title">{{ notif.title }}</div>
+                  <div class="notif-item-desc">{{ notif.content }}</div>
+                  <div class="notif-item-time">{{ formatTime(notif.createTime) }}</div>
+                </div>
+              </div>
+              <div v-if="notifications.length === 0" class="notif-empty">暂无通知</div>
+            </div>
+          </div>
+        </transition>
+        
         <div class="user-card" @click="toggleUserMenu">
           <el-avatar :src="userInfo?.avatar" :size="36">
             <el-icon :size="18"><User /></el-icon>
@@ -64,17 +93,76 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
+import { Bell } from '@element-plus/icons-vue'
+import { getNotificationList, getUnreadCount, markAllAsRead, markAsRead } from '@/api/notification'
 
 const router = useRouter()
 const userStore = useUserStore()
 const userInfo = computed(() => userStore.userInfo)
 const showUserMenu = ref(false)
+const showNotification = ref(false)
+const notifications = ref([])
+const unreadCount = ref(0)
 
 const toggleUserMenu = () => { showUserMenu.value = !showUserMenu.value }
+
+const toggleNotification = async () => {
+  showNotification.value = !showNotification.value
+  if (showNotification.value) await loadNotifications()
+}
+
+const loadNotifications = async () => {
+  try {
+    const res = await getNotificationList()
+    if (res.code === 200) notifications.value = res.data || []
+    const countRes = await getUnreadCount()
+    if (countRes.code === 200) unreadCount.value = countRes.data || 0
+  } catch (e) { console.error(e) }
+}
+
+const markAllRead = async () => {
+  try {
+    const res = await markAllAsRead()
+    if (res.code === 200) {
+      unreadCount.value = 0
+      notifications.value.forEach(n => n.isRead = 1)
+    }
+  } catch (e) { console.error(e) }
+}
+
+const handleNotifClick = async (notif) => {
+  if (notif.isRead === 0) {
+    try {
+      await markAsRead(notif.id)
+      notif.isRead = 1
+      unreadCount.value = Math.max(0, unreadCount.value - 1)
+    } catch (e) { console.error(e) }
+  }
+  if (notif.sessionId) {
+    router.push('/host/sessions')
+    showNotification.value = false
+  }
+}
+
+const getNotifIcon = (type) => {
+  const icons = { 1: 'Bell', 2: 'UserFilled', 3: 'ShoppingCart', 4: 'Calendar', 5: 'Wallet' }
+  return icons[type] || 'Bell'
+}
+
+const formatTime = (t) => {
+  if (!t) return ''
+  const d = new Date(t)
+  const now = new Date()
+  const diff = now - d
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前'
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前'
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
 
 const goProfile = () => {
   showUserMenu.value = false
@@ -86,6 +174,11 @@ const handleLogout = () => {
   ElMessage.success('已退出工作台')
   router.push('/login')
 }
+
+onMounted(() => {
+  loadNotifications()
+  setInterval(loadNotifications, 60000)
+})
 </script>
 
 <style scoped lang="scss">
@@ -98,7 +191,9 @@ const handleLogout = () => {
 .sk-sidebar {
   width: 240px;
   min-height: 100vh;
-  background: linear-gradient(180deg, rgba(10, 14, 30, 0.98), rgba(6, 8, 18, 0.98));
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-right: 1px solid var(--sk-border);
   display: flex;
   flex-direction: column;
@@ -118,7 +213,6 @@ const handleLogout = () => {
   .brand-icon {
     width: 32px; height: 32px;
     color: var(--sk-neon-purple);
-    filter: drop-shadow(0 0 8px rgba(180, 74, 255, 0.5));
     svg { width: 100%; height: 100%; }
   }
 
@@ -130,9 +224,8 @@ const handleLogout = () => {
       font-family: var(--sk-font-display);
       font-size: 14px;
       font-weight: 700;
-      color: var(--sk-neon-purple);
+      color: #1F2937;
       letter-spacing: 2px;
-      text-shadow: 0 0 12px rgba(180, 74, 255, 0.4);
     }
     .brand-sub {
       font-size: 10px;
@@ -155,7 +248,7 @@ const handleLogout = () => {
     gap: 12px;
     padding: 12px 16px;
     border-radius: 10px;
-    color: var(--sk-text-muted);
+    color: #6B7280;
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
@@ -171,18 +264,17 @@ const handleLogout = () => {
       background: var(--sk-neon-purple);
       border-radius: 0 3px 3px 0;
       transition: height 0.3s;
-      box-shadow: 0 0 8px rgba(180, 74, 255, 0.6);
     }
 
     &:hover {
-      color: var(--sk-text-secondary);
-      background: rgba(180, 74, 255, 0.04);
+      color: #1F2937;
+      background: rgba(119, 68, 204, 0.06);
     }
 
     &.active {
-      color: var(--sk-neon-purple);
-      background: rgba(180, 74, 255, 0.08);
-      .el-icon { filter: drop-shadow(0 0 6px rgba(180, 74, 255, 0.5)); }
+      color: #FFFFFF;
+      background: var(--sk-neon-purple);
+      .el-icon { filter: none; }
       .nav-glow { height: 60%; }
     }
   }
@@ -193,19 +285,100 @@ const handleLogout = () => {
   border-top: 1px solid var(--sk-border);
   position: relative;
 
+  .notification-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s;
+    margin-bottom: 8px;
+
+    &:hover { background: rgba(119, 68, 204, 0.06); }
+
+    .notif-badge {
+      :deep(.el-badge__content) {
+        background: var(--sk-neon-pink);
+        border: none;
+      }
+    }
+
+    .notif-label { font-size: 13px; color: #6B7280; }
+  }
+
+  .notification-panel {
+    position: absolute;
+    bottom: 140px;
+    left: 12px;
+    right: 12px;
+    width: calc(100% - 24px);
+    background: var(--sk-bg-card);
+    border: 1px solid var(--sk-border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    z-index: 200;
+
+    .notif-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--sk-border);
+
+      .notif-title { font-size: 14px; font-weight: 600; color: var(--sk-text-primary); }
+      .notif-action { font-size: 12px; color: var(--sk-neon-purple); cursor: pointer; &:hover { opacity: 0.8; } }
+    }
+
+    .notif-list {
+      max-height: 300px;
+      overflow-y: auto;
+
+      .notif-item {
+        display: flex;
+        gap: 10px;
+        padding: 12px 16px;
+        cursor: pointer;
+        transition: background 0.2s;
+        border-bottom: 1px solid var(--sk-border);
+
+        &:last-child { border-bottom: none; }
+        &:hover { background: rgba(119, 68, 204, 0.04); }
+        &.unread { background: rgba(119, 68, 204, 0.04); .notif-item-title { color: var(--sk-neon-purple); } }
+
+        .notif-item-icon {
+          width: 32px; height: 32px; border-radius: 8px;
+          background: rgba(119, 68, 204, 0.1);
+          display: flex; align-items: center; justify-content: center;
+          color: var(--sk-neon-purple); flex-shrink: 0;
+        }
+
+        .notif-item-content {
+          flex: 1; min-width: 0;
+          .notif-item-title { font-size: 13px; font-weight: 600; color: var(--sk-text-primary); margin-bottom: 2px; }
+          .notif-item-desc { font-size: 12px; color: var(--sk-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .notif-item-time { font-size: 11px; color: var(--sk-text-muted); margin-top: 4px; }
+        }
+      }
+
+      .notif-empty { text-align: center; padding: 30px; color: var(--sk-text-muted); font-size: 13px; }
+    }
+  }
+
   .user-card {
     display: flex; align-items: center; gap: 10px;
     padding: 10px 12px; border-radius: 10px; cursor: pointer; transition: background 0.3s;
-    &:hover { background: rgba(180, 74, 255, 0.06); }
+    &:hover { background: rgba(119, 68, 204, 0.06); }
 
     .el-avatar {
-      border: 2px solid rgba(180, 74, 255, 0.3);
+      border: 2px solid rgba(119, 68, 204, 0.2);
       background: var(--sk-bg-elevated);
     }
 
     .user-meta {
       display: flex; flex-direction: column;
-      .user-name { font-size: 13px; color: var(--sk-text-primary); font-weight: 500; }
+      .user-name { font-size: 13px; color: #1F2937; font-weight: 500; }
       .user-role { font-size: 10px; color: var(--sk-neon-purple); font-family: var(--sk-font-display); letter-spacing: 1px; opacity: 0.7; }
     }
   }
@@ -214,12 +387,12 @@ const handleLogout = () => {
     position: absolute; bottom: 72px; left: 12px; right: 12px;
     background: var(--sk-bg-card); border: 1px solid var(--sk-border);
     border-radius: 10px; overflow: hidden;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
 
     .menu-item {
-      padding: 10px 16px; color: var(--sk-text-secondary);
+      padding: 10px 16px; color: #6B7280;
       font-size: 13px; cursor: pointer; transition: all 0.2s;
-      &:hover { background: rgba(180, 74, 255, 0.08); color: var(--sk-neon-purple); }
+      &:hover { background: rgba(119, 68, 204, 0.08); color: var(--sk-neon-purple); }
       &.danger:hover { background: rgba(255, 23, 68, 0.08); color: var(--sk-neon-red); }
     }
   }
@@ -230,7 +403,6 @@ const handleLogout = () => {
   margin-left: 240px;
   padding: 28px;
   min-height: 100vh;
-  background: radial-gradient(ellipse at 70% 10%, rgba(180, 74, 255, 0.03) 0%, transparent 50%),
-              var(--sk-bg-deepest);
+  background: var(--sk-bg-deepest);
 }
 </style>

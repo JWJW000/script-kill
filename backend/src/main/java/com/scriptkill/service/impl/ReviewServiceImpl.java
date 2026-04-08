@@ -11,6 +11,8 @@ import com.scriptkill.service.ReviewService;
 import com.scriptkill.service.SessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +97,12 @@ public class ReviewServiceImpl extends ServiceImpl<ReviewMapper, Review> impleme
         if (!review.getUserId().equals(userId)) {
             throw new RuntimeException("无权修改此评价");
         }
+        
+        // 检查是否在24小时内
+        if (!canModifyOrDelete(review)) {
+            throw new RuntimeException("评价只能在发布后24小时内修改");
+        }
+        
         if (scriptRating != null) review.setScriptRating(scriptRating);
         if (hostRating != null) review.setHostRating(hostRating);
         if (scriptComment != null) review.setScriptComment(scriptComment);
@@ -112,8 +120,22 @@ public class ReviewServiceImpl extends ServiceImpl<ReviewMapper, Review> impleme
         if (!review.getUserId().equals(userId)) {
             throw new RuntimeException("无权删除此评价");
         }
+        
+        // 检查是否在24小时内
+        if (!canModifyOrDelete(review)) {
+            throw new RuntimeException("评价只能在发布后24小时内删除");
+        }
+        
         review.setStatus(0);
         this.updateById(review);
+    }
+
+    private boolean canModifyOrDelete(Review review) {
+        if (review.getCreateTime() == null) {
+            return false;
+        }
+        long hoursSinceCreation = ChronoUnit.HOURS.between(review.getCreateTime(), LocalDateTime.now());
+        return hoursSinceCreation < 24;
     }
 
     @Override

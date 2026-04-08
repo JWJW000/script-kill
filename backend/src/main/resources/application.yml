@@ -4,6 +4,8 @@ server:
     context-path: /api
 
 spring:
+  main:
+    allow-circular-references: true
   application:
     name: script-kill-backend
   datasource:
@@ -49,6 +51,12 @@ minio:
   access-key: minioadmin
   secret-key: minioadmin
   bucket-name: script-kill
+
+# DeepSeek AI 配置
+deepseek:
+  api:
+    url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+    key: sk-e519536511884229ae60cb06a627120d
 
 # 文件上传配置
 spring.servlet.multipart:

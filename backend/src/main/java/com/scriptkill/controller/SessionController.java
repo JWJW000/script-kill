@@ -126,6 +126,17 @@ public class SessionController {
         if (session == null) {
             return Result.error("场次不存在");
         }
+        
+        // 如果是将状态改为"已取消/下架"，需要自动退款
+        if (status == Constants.SESSION_STATUS_CANCELLED) {
+            try {
+                sessionService.cancelSessionByAdmin(id);
+                return Result.success("场次已下架，已支付订单已自动退款");
+            } catch (Exception e) {
+                return Result.error(e.getMessage());
+            }
+        }
+        
         session.setStatus(status);
         sessionService.updateById(session);
         return Result.success("状态更新成功");
@@ -185,6 +196,21 @@ public class SessionController {
         try {
             sessionService.cancelSession(id, hostId);
             return Result.success("取消成功");
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/end")
+    public Result<?> endSession(@PathVariable Long id, HttpServletRequest request) {
+        Long hostId = (Long) request.getAttribute("userId");
+        String role = (String) request.getAttribute("role");
+        if (!"HOST".equals(role)) {
+            return Result.error(403, "无权限操作");
+        }
+        try {
+            sessionService.endSession(id, hostId);
+            return Result.success("场次已结束");
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }

@@ -40,7 +40,7 @@
           <a class="more-link" @click="$router.push('/player/scripts')">查看全部</a>
         </div>
         <div class="script-list">
-          <div v-for="script in hotScripts" :key="script.id" class="script-item" @click="$router.push('/player/scripts')">
+          <div v-for="script in hotScripts" :key="script.id" class="script-item" @click="goToScriptDetail(script)">
             <div class="script-cover">
               <el-image :src="script.cover" fit="cover" class="cover-img">
                 <template #error>
@@ -69,7 +69,7 @@
         <div class="card-header">
           <h3>
             <span class="dot" style="background: var(--sk-neon-purple);" />
-            推荐拼场
+            猜你喜欢
           </h3>
           <a class="more-link" @click="$router.push('/player/team-up')">发起拼场</a>
         </div>
@@ -96,6 +96,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
 import { getDashboard } from '@/api/statistics'
@@ -103,6 +104,7 @@ import { getScripts } from '@/api/script'
 import { getRecommendedTeamUps, joinTeamUp as joinTeamUpApi } from '@/api/teamUp'
 
 const userStore = useUserStore()
+const router = useRouter()
 const userInfo = computed(() => userStore.userInfo)
 const rawStats = ref({})
 const hotScripts = ref([])
@@ -110,9 +112,9 @@ const recommendedTeamUps = ref([])
 
 const statCards = computed(() => [
   { label: '我的订单', value: rawStats.value.totalOrders || 0, icon: 'Document', color: '#00e5ff' },
-  { label: '参与拼场', value: rawStats.value.totalTeamUps || 0, icon: 'UserFilled', color: '#b44aff' },
+  { label: '我的拼场', value: rawStats.value.totalTeamUps || 0, icon: 'UserFilled', color: '#b44aff' },
   { label: '我的评价', value: rawStats.value.totalReviews || 0, icon: 'Star', color: '#ffab00' },
-  { label: '完成场次', value: rawStats.value.completedSessions || 0, icon: 'SuccessFilled', color: '#00e676' }
+  { label: '我的收藏', value: rawStats.value.favoriteCount || 0, icon: 'StarFilled', color: '#00e676' }
 ])
 
 const difficultyText = (d) => ({ BEGINNER: '新手', INTERMEDIATE: '进阶', EXPERT: '烧脑' }[d] || d)
@@ -154,6 +156,10 @@ const handleJoinTeamUp = async (id) => {
       loadStatistics()
     }
   } catch (e) { ElMessage.error(e.message || '加入失败') }
+}
+
+const goToScriptDetail = (script) => {
+  router.push({ path: '/player/scripts', query: { scriptId: script.id } })
 }
 
 onMounted(() => {

@@ -67,3 +67,10 @@ export function cancelSession(sessionId) {
     method: 'post'
   })
 }
+
+export function endSession(sessionId) {
+  return request({
+    url: `/session/${sessionId}/end`,
+    method: 'post'
+  })
+}
