@@ -167,11 +167,15 @@ const handleLogout = () => {
       transition: height 0.3s;
     }
 
-    &:hover { color: #1F2937; background: rgba(204, 34, 102, 0.06); }
+    &:hover {
+      color: #1F2937;
+      background: rgba(204, 34, 102, 0.06);
+    }
 
     &.active {
-      color: #FFFFFF;
-      background: var(--sk-neon-pink);
+      color: var(--sk-neon-pink);
+      background: rgba(204, 34, 102, 0.08);
+      border: 1px solid rgba(204, 34, 102, 0.2);
       .el-icon { filter: none; }
       .nav-glow { height: 60%; }
     }

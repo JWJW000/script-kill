@@ -272,8 +272,9 @@ onMounted(() => {
     }
 
     &.active {
-      color: #FFFFFF;
-      background: var(--sk-neon-purple);
+      color: var(--sk-neon-purple);
+      background: rgba(119, 68, 204, 0.08);
+      border: 1px solid rgba(119, 68, 204, 0.2);
       .el-icon { filter: none; }
       .nav-glow { height: 60%; }
     }

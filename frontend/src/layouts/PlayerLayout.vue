@@ -354,8 +354,9 @@ onMounted(() => {
     }
 
     &.active {
-      color: #FFFFFF;
-      background: var(--sk-neon-cyan);
+      color: var(--sk-neon-cyan);
+      background: rgba(0, 160, 204, 0.08);
+      border: 1px solid rgba(0, 160, 204, 0.2);
 
       .el-icon {
         filter: none;
